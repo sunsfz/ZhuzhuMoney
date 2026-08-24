@@ -2,6 +2,7 @@ import { AppData, CashTransaction, GirlProfile, SavingsGoal, SavingsSnapshot } f
 import { pushToGoogleSheet } from './googleSheetsSync';
 
 const STORAGE_KEY = 'zhuzhu_money_data_v2';
+const SHEET_URL_KEY = 'zhuzhu_google_sheet_url';
 
 export const INITIAL_DATA: AppData = {
   girls: [
@@ -74,25 +75,28 @@ export const INITIAL_DATA: AppData = {
 
 export const loadAppData = (): AppData => {
   try {
+    // Check URL param first (e.g. ?sync=https://script.google.com/...)
+    let persistentUrl = '';
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const syncParam = urlParams.get('sync');
+      if (syncParam) {
+        persistentUrl = decodeURIComponent(syncParam);
+        localStorage.setItem(SHEET_URL_KEY, persistentUrl);
+      } else {
+        persistentUrl = localStorage.getItem(SHEET_URL_KEY) || '';
+      }
+    }
+
     const envUrl = (import.meta as unknown as { env?: { VITE_GOOGLE_SHEET_URL?: string } }).env?.VITE_GOOGLE_SHEET_URL || '';
+    const activeUrl = persistentUrl || envUrl;
+
     const rawV2 = localStorage.getItem(STORAGE_KEY);
     if (!rawV2) {
-      // Check if previous v1 had googleSheetScriptUrl saved or use env URL
-      let previousUrl = envUrl;
-      try {
-        const oldV1 = localStorage.getItem('zhuzhu_money_data_v1');
-        if (oldV1) {
-          const parsedV1 = JSON.parse(oldV1);
-          if (parsedV1.googleSheetScriptUrl) {
-            previousUrl = parsedV1.googleSheetScriptUrl;
-          }
-        }
-      } catch {}
-
       const cleanInitial = {
         ...INITIAL_DATA,
         parentPin: '0518',
-        googleSheetScriptUrl: previousUrl || undefined,
+        googleSheetScriptUrl: activeUrl || undefined,
       };
       saveAppData(cleanInitial);
       return cleanInitial;
@@ -102,7 +106,7 @@ export const loadAppData = (): AppData => {
       ...INITIAL_DATA,
       ...parsed,
       parentPin: parsed.parentPin || '0518',
-      googleSheetScriptUrl: parsed.googleSheetScriptUrl || envUrl || undefined,
+      googleSheetScriptUrl: parsed.googleSheetScriptUrl || activeUrl || undefined,
     };
   } catch (err) {
     console.error('Failed to load app data from localStorage', err);
@@ -118,8 +122,8 @@ export const saveAppData = (data: AppData): void => {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
-    // Auto-sync in background if Google Sheet URL is configured
     if (updated.googleSheetScriptUrl) {
+      localStorage.setItem(SHEET_URL_KEY, updated.googleSheetScriptUrl);
       pushToGoogleSheet(updated.googleSheetScriptUrl, updated).catch(err => {
         console.warn('Auto-sync to Google Sheet failed:', err);
       });

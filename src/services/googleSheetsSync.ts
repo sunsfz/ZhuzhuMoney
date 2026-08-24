@@ -9,24 +9,193 @@ import { AppData } from '../types/finance';
 
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `
 /**
- * ZhuzhuMoney Google Sheets Backend Sync Script
+ * ZhuzhuMoney Google Sheets Backend Sync Script (Two-Way Live Sync)
  * 
- * Automatically syncs and formats your financial data into clean spreadsheet tabs:
- * 1. "Cash Ledger" (All pocket money transactions)
- * 2. "Custodial Savings" (Bank balance snapshots)
- * 3. "ZhuzhuData" (Raw sync storage)
+ * You can edit amounts, transactions, and balances directly in Google Sheets,
+ * and they will instantly reflect on the web app!
  */
 
 function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("ZhuzhuData");
-  if (!sheet) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "empty" }))
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var cashSheet = ss.getSheetByName("Cash Ledger");
+    var savSheet = ss.getSheetByName("Custodial Savings");
+    var goalSheet = ss.getSheetByName("Wishlist & Goals");
+    var profileSheet = ss.getSheetByName("Profiles & PIN");
+
+    // Fallback: If formatted sheets do not exist yet, check raw sync sheet
+    if (!cashSheet && !savSheet) {
+      var syncSheet = ss.getSheetByName("ZhuzhuData");
+      if (!syncSheet) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "empty" }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var raw = syncSheet.getRange(1, 1).getValue();
+      return ContentService.createTextOutput(raw || "{}")
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 1. Parse Profiles & PIN
+    var girls = [
+      { id: "girl_1", name: "Jessie", avatarEmoji: "👧🏻", themeColor: "pink", birthday: "2016-01-01" },
+      { id: "girl_2", name: "Rains", avatarEmoji: "🧒🏻", themeColor: "purple", birthday: "2018-01-01" }
+    ];
+    var parentPin = "0518";
+
+    if (profileSheet && profileSheet.getLastRow() >= 2) {
+      var profData = profileSheet.getDataRange().getValues();
+      for (var p = 1; p < profData.length; p++) {
+        var row = profData[p];
+        if (row[0] === "Parent PIN" && row[1]) {
+          parentPin = String(row[1]).trim();
+        } else if (row[0] === "girl_1" || row[0] === "Jessie") {
+          girls[0].name = String(row[1] || "Jessie").trim();
+          girls[0].avatarEmoji = String(row[2] || "👧🏻").trim();
+          girls[0].themeColor = String(row[3] || "pink").trim();
+        } else if (row[0] === "girl_2" || row[0] === "Rains") {
+          girls[1].name = String(row[1] || "Rains").trim();
+          girls[1].avatarEmoji = String(row[2] || "🧒🏻").trim();
+          girls[1].themeColor = String(row[3] || "purple").trim();
+        }
+      }
+    }
+
+    // Helper: Map girl name to ID
+    function getGirlId(name) {
+      if (!name) return "girl_1";
+      var n = String(name).trim().toLowerCase();
+      if (n.indexOf(girls[1].name.toLowerCase()) !== -1 || n === "girl_2" || n === "rains") {
+        return "girl_2";
+      }
+      return "girl_1";
+    }
+
+    // 2. Parse "Cash Ledger" Rows
+    var transactions = [];
+    if (cashSheet && cashSheet.getLastRow() >= 2) {
+      var cashRows = cashSheet.getDataRange().getValues();
+      for (var i = 1; i < cashRows.length; i++) {
+        var r = cashRows[i];
+        if (!r[0] && !r[3]) continue; // Skip empty rows
+
+        var rawDate = r[0];
+        var formattedDate = rawDate instanceof Date
+          ? Utilities.formatDate(rawDate, Session.getScriptTimeZone(), "yyyy-MM-dd")
+          : String(rawDate || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"));
+
+        var girlId = getGirlId(r[1]);
+        var typeRaw = String(r[2] || "").toLowerCase();
+        var rawAmount = Number(r[3]) || 0;
+        var type = typeRaw.indexOf("spent") !== -1 || typeRaw.indexOf("out") !== -1 || rawAmount < 0
+          ? "spent"
+          : "deposit";
+        var amount = Math.abs(rawAmount);
+
+        var rawCat = String(r[4] || "Allowance");
+        var catEmoji = "💵";
+        var catName = rawCat;
+        var emojiMatch = rawCat.match(/^([\uD800-\uDBFF][\uDC00-\uDFFF]|\p{Emoji})/u);
+        if (emojiMatch) {
+          catEmoji = emojiMatch[0];
+          catName = rawCat.replace(catEmoji, "").trim();
+        }
+
+        var description = String(r[5] || "");
+        var createdAt = r[6] ? String(r[6]) : new Date().toISOString();
+
+        transactions.push({
+          id: "tx_" + i + "_" + girlId,
+          girlId: girlId,
+          type: type,
+          amount: amount,
+          category: catName || "Allowance",
+          categoryEmoji: catEmoji,
+          description: description,
+          date: formattedDate,
+          createdAt: createdAt
+        });
+      }
+    }
+
+    // 3. Parse "Custodial Savings" Rows
+    var savingsSnapshots = [];
+    if (savSheet && savSheet.getLastRow() >= 2) {
+      var savRows = savSheet.getDataRange().getValues();
+      for (var j = 1; j < savRows.length; j++) {
+        var sr = savRows[j];
+        if (!sr[0] && !sr[2]) continue;
+
+        var sDate = sr[0] instanceof Date
+          ? Utilities.formatDate(sr[0], Session.getScriptTimeZone(), "yyyy-MM-dd")
+          : String(sr[0] || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"));
+
+        var sGirlId = getGirlId(sr[1]);
+        var sBalance = Number(sr[2]) || 0;
+        var sNote = String(sr[3] || "");
+        var sCreatedAt = sr[4] ? String(sr[4]) : new Date().toISOString();
+
+        savingsSnapshots.push({
+          id: "sav_" + j + "_" + sGirlId,
+          girlId: sGirlId,
+          balance: sBalance,
+          date: sDate,
+          note: sNote,
+          createdAt: sCreatedAt
+        });
+      }
+    }
+
+    // 4. Parse "Wishlist & Goals" Rows
+    var goals = [];
+    if (goalSheet && goalSheet.getLastRow() >= 2) {
+      var goalRows = goalSheet.getDataRange().getValues();
+      for (var k = 1; k < goalRows.length; k++) {
+        var gr = goalRows[k];
+        if (!gr[0]) continue;
+
+        var rawTitle = String(gr[0] || "");
+        var gEmoji = "🎯";
+        var gTitle = rawTitle;
+        var gEmojiMatch = rawTitle.match(/^([\uD800-\uDBFF][\uDC00-\uDFFF]|\p{Emoji})/u);
+        if (gEmojiMatch) {
+          gEmoji = gEmojiMatch[0];
+          gTitle = rawTitle.replace(gEmoji, "").trim();
+        }
+
+        var gGirlId = getGirlId(gr[1]);
+        var gAmount = Number(gr[2]) || 0;
+        var gStatus = String(gr[3] || "").toLowerCase();
+        var gCompleted = gStatus.indexOf("achieved") !== -1 || gStatus.indexOf("yes") !== -1 || gStatus.indexOf("done") !== -1;
+        var gNotes = String(gr[4] || "");
+
+        goals.push({
+          id: "goal_" + k + "_" + gGirlId,
+          girlId: gGirlId,
+          title: gTitle,
+          targetAmount: gAmount,
+          emoji: gEmoji,
+          completed: gCompleted,
+          notes: gNotes
+        });
+      }
+    }
+
+    var resultData = {
+      girls: girls,
+      transactions: transactions,
+      savingsSnapshots: savingsSnapshots,
+      goals: goals,
+      parentPin: parentPin,
+      lastSyncTimestamp: new Date().toISOString()
+    };
+
+    return ContentService.createTextOutput(JSON.stringify(resultData))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  var data = sheet.getRange(1, 1).getValue();
-  return ContentService.createTextOutput(data || "{}")
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
@@ -35,7 +204,7 @@ function doPost(e) {
     var contents = e.postData.contents;
     var parsed = JSON.parse(contents);
 
-    // 1. Save Raw Sync Payload
+    // 1. Raw sync backup
     var syncSheet = ss.getSheetByName("ZhuzhuData");
     if (!syncSheet) {
       syncSheet = ss.insertSheet("ZhuzhuData");
@@ -43,7 +212,25 @@ function doPost(e) {
     syncSheet.getRange(1, 1).setValue(contents);
     syncSheet.getRange(1, 2).setValue(new Date());
 
-    // 2. Format Pretty Human-Readable "Cash Ledger" Tab
+    // 2. Update Profiles & PIN Tab
+    if (parsed.girls) {
+      var profSheet = ss.getSheetByName("Profiles & PIN");
+      if (!profSheet) {
+        profSheet = ss.insertSheet("Profiles & PIN", 3);
+      }
+      profSheet.clear();
+      profSheet.appendRow(["ID / Setting", "Name / Value", "Avatar Emoji", "Theme Color", "Birthday"]);
+      profSheet.getRange(1, 1, 1, 5).setBackground("#F1F5F9").setFontWeight("bold").setFontColor("#334155");
+
+      parsed.girls.forEach(function(g) {
+        profSheet.appendRow([g.id, g.name, g.avatarEmoji || "👧🏻", g.themeColor || "pink", g.birthday || ""]);
+      });
+      profSheet.appendRow(["Parent PIN", parsed.parentPin || "0518", "", "", ""]);
+      profSheet.setFrozenRows(1);
+      profSheet.autoResizeColumns(1, 5);
+    }
+
+    // 3. Format "Cash Ledger" Tab
     if (parsed.transactions && parsed.girls) {
       var girlMap = {};
       parsed.girls.forEach(function(g) { girlMap[g.id] = g.name; });
@@ -54,10 +241,8 @@ function doPost(e) {
       }
       cashSheet.clear();
       
-      // Header
       cashSheet.appendRow(["Date", "Girl", "Type", "Amount ($)", "Category", "Item / Description", "Logged At"]);
-      var headerRange = cashSheet.getRange(1, 1, 1, 7);
-      headerRange.setBackground("#FFF1F2").setFontWeight("bold").setFontColor("#9F1239");
+      cashSheet.getRange(1, 1, 1, 7).setBackground("#FFF1F2").setFontWeight("bold").setFontColor("#9F1239");
 
       parsed.transactions.forEach(function(tx) {
         cashSheet.appendRow([
@@ -74,7 +259,7 @@ function doPost(e) {
       cashSheet.autoResizeColumns(1, 7);
     }
 
-    // 3. Format Pretty Human-Readable "Custodial Savings" Tab
+    // 4. Format "Custodial Savings" Tab
     if (parsed.savingsSnapshots && parsed.girls) {
       var girlMap = {};
       parsed.girls.forEach(function(g) { girlMap[g.id] = g.name; });
@@ -85,10 +270,8 @@ function doPost(e) {
       }
       savSheet.clear();
       
-      // Header
       savSheet.appendRow(["Statement Date", "Girl", "Custodial Balance ($)", "Notes / Statement Memo", "Recorded At"]);
-      var savHeader = savSheet.getRange(1, 1, 1, 5);
-      savHeader.setBackground("#FAF5FF").setFontWeight("bold").setFontColor("#581C87");
+      savSheet.getRange(1, 1, 1, 5).setBackground("#FAF5FF").setFontWeight("bold").setFontColor("#581C87");
 
       parsed.savingsSnapshots.forEach(function(s) {
         savSheet.appendRow([
@@ -103,7 +286,7 @@ function doPost(e) {
       savSheet.autoResizeColumns(1, 5);
     }
 
-    // 4. Format Pretty Human-Readable "Wishlist & Goals" Tab
+    // 5. Format "Wishlist & Goals" Tab
     if (parsed.goals && parsed.girls) {
       var girlMap = {};
       parsed.girls.forEach(function(g) { girlMap[g.id] = g.name; });
