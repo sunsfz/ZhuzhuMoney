@@ -38,10 +38,16 @@ export function App() {
   const [isGoalModalOpen, setIsGoalModalOpen] = useState<boolean>(false);
   const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null);
 
+  const [isLoadingInitial, setIsLoadingInitial] = useState<boolean>(
+    () => (loadAppData().transactions || []).length === 0
+  );
+
   // Initial cloud sync on startup only (never clobber on window focus or typing)
   useEffect(() => {
     const activeUrl = appData.googleSheetScriptUrl || DEFAULT_GOOGLE_SHEET_URL;
-    handleSilentPull(activeUrl);
+    handleSilentPull(activeUrl).finally(() => {
+      setIsLoadingInitial(false);
+    });
   }, []);
 
   const handleSilentPull = async (url: string) => {
@@ -246,7 +252,21 @@ export function App() {
 
       {/* Main Container */}
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {isParentMode ? (
+        {isLoadingInitial ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="text-6xl animate-bounce mb-4">🐷✨</div>
+            <h3 className="font-heading font-bold text-xl text-slate-800 mb-2">
+              Opening Piggy Bank...
+            </h3>
+            <p className="text-sm font-semibold text-slate-500 max-w-sm">
+              Fetching your latest financial records from Google Sheets.
+            </p>
+            <div className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-amber-800 bg-amber-100/80 px-4 py-2 rounded-full border border-amber-200 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span>Loading Google Sheet Live Sync...</span>
+            </div>
+          </div>
+        ) : isParentMode ? (
           <ParentDashboard
             girl={currentGirl}
             transactions={safeTransactions}

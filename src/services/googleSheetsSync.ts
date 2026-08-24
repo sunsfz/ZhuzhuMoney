@@ -419,13 +419,7 @@ function writeSpreadsheetData(ss, rawContents) {
 export async function fetchFromGoogleSheet(scriptUrl: string): Promise<AppData | null> {
   try {
     const cacheBusterUrl = `${scriptUrl}${scriptUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-    const response = await fetch(cacheBusterUrl, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    const response = await fetch(cacheBusterUrl);
 
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
