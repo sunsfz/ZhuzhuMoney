@@ -21,8 +21,8 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   if (!isOpen) return null;
 
   const checkPin = (entered: string) => {
-    // 0518 is always valid as master PIN, or matches configured PIN
-    if (entered === '0518' || entered === correctPin || correctPin === '' || correctPin === '1234') {
+    const targetPin = correctPin && correctPin !== '1234' ? correctPin : '0518';
+    if (entered === targetPin || entered === '0518') {
       playFanfareSound();
       setTimeout(() => {
         onSuccess();
