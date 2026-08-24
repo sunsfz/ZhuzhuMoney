@@ -4,6 +4,8 @@ import { pushToGoogleSheet } from './googleSheetsSync';
 const STORAGE_KEY = 'zhuzhu_money_data_v2';
 const SHEET_URL_KEY = 'zhuzhu_google_sheet_url';
 
+export const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj_2KU0Ds_Kd4VuXQlD_ZjVyQAeNxU6SFrZZrdIOJ8tqMobuAox9YBe3QeURpLBmP5/exec';
+
 export const INITIAL_DATA: AppData = {
   girls: [
     {
@@ -71,6 +73,7 @@ export const INITIAL_DATA: AppData = {
   ],
   goals: [], // No wishlist items to start
   parentPin: '0518',
+  googleSheetScriptUrl: DEFAULT_GOOGLE_SHEET_URL,
 };
 
 export const loadAppData = (): AppData => {
@@ -89,14 +92,14 @@ export const loadAppData = (): AppData => {
     }
 
     const envUrl = (import.meta as unknown as { env?: { VITE_GOOGLE_SHEET_URL?: string } }).env?.VITE_GOOGLE_SHEET_URL || '';
-    const activeUrl = persistentUrl || envUrl;
+    const activeUrl = persistentUrl || envUrl || DEFAULT_GOOGLE_SHEET_URL;
 
     const rawV2 = localStorage.getItem(STORAGE_KEY);
     if (!rawV2) {
       const cleanInitial = {
         ...INITIAL_DATA,
         parentPin: '0518',
-        googleSheetScriptUrl: activeUrl || undefined,
+        googleSheetScriptUrl: activeUrl,
       };
       saveAppData(cleanInitial);
       return cleanInitial;
@@ -106,7 +109,7 @@ export const loadAppData = (): AppData => {
       ...INITIAL_DATA,
       ...parsed,
       parentPin: parsed.parentPin || '0518',
-      googleSheetScriptUrl: parsed.googleSheetScriptUrl || activeUrl || undefined,
+      googleSheetScriptUrl: parsed.googleSheetScriptUrl || activeUrl,
     };
   } catch (err) {
     console.error('Failed to load app data from localStorage', err);
