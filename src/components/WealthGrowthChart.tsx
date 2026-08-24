@@ -161,6 +161,21 @@ export const WealthGrowthChart: React.FC<WealthGrowthChartProps> = ({
     const minVal = Math.min(...points.map(getValue), 0);
 
     const rangeY = maxVal - minVal || 1;
+
+    if (points.length === 1) {
+      const p = points[0];
+      const val = getValue(p);
+      const y = height - padding.bottom - ((val - minVal) / rangeY) * (height - padding.top - padding.bottom);
+      const x1 = padding.left;
+      const x2 = width - padding.right;
+      const path = `M ${x1} ${y} L ${x2} ${y}`;
+      const areaPath = `M ${x1} ${y} L ${x2} ${y} L ${x2} ${height - padding.bottom} L ${x1} ${height - padding.bottom} Z`;
+      const coords = [
+        { x: (x1 + x2) / 2, y, point: p, value: val },
+      ];
+      return { path, areaPath, coords, height, width };
+    }
+
     const stepX = (width - padding.left - padding.right) / Math.max(1, points.length - 1);
 
     const coords = points.map((p, idx) => {

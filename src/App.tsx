@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppData, CashTransaction, GirlProfile, SavingsGoal, SavingsSnapshot } from './types/finance';
-import { loadAppData, saveAppData } from './services/storage';
+import { INITIAL_DATA, loadAppData, saveAppData } from './services/storage';
 import { fetchFromGoogleSheet, pushToGoogleSheet } from './services/googleSheetsSync';
 import { Header } from './components/Header';
 import { KidDashboard } from './components/KidView/KidDashboard';
@@ -132,7 +132,11 @@ export function App() {
     }
   };
 
-  const currentGirl = appData.girls.find((g) => g.id === selectedGirlId) || appData.girls[0];
+  const safeGirls: GirlProfile[] = (appData.girls && appData.girls.length > 0) ? appData.girls : INITIAL_DATA.girls;
+  const currentGirl: GirlProfile = safeGirls.find((g: GirlProfile) => g.id === selectedGirlId) || safeGirls[0];
+  const safeTransactions = appData.transactions || [];
+  const safeSavings = appData.savingsSnapshots || [];
+  const safeGoals = appData.goals || [];
 
   // Cash Transaction Handlers
   const handleSaveTransaction = (
@@ -140,7 +144,7 @@ export function App() {
     editingId?: string
   ) => {
     if (editingId) {
-      const updated = appData.transactions.map((t) =>
+      const updated = safeTransactions.map((t) =>
         t.id === editingId ? { ...t, ...txData } : t
       );
       updateStateAndStorage({ ...appData, transactions: updated });
@@ -152,13 +156,13 @@ export function App() {
       };
       updateStateAndStorage({
         ...appData,
-        transactions: [newTx, ...appData.transactions],
+        transactions: [newTx, ...safeTransactions],
       });
     }
   };
 
   const handleDeleteTransaction = (id: string) => {
-    const updated = appData.transactions.filter((t) => t.id !== id);
+    const updated = safeTransactions.filter((t) => t.id !== id);
     updateStateAndStorage({ ...appData, transactions: updated });
   };
 
@@ -168,7 +172,7 @@ export function App() {
     editingId?: string
   ) => {
     if (editingId) {
-      const updated = appData.savingsSnapshots.map((s) =>
+      const updated = safeSavings.map((s) =>
         s.id === editingId ? { ...s, ...snapData } : s
       );
       updateStateAndStorage({ ...appData, savingsSnapshots: updated });
@@ -180,20 +184,20 @@ export function App() {
       };
       updateStateAndStorage({
         ...appData,
-        savingsSnapshots: [newSnap, ...appData.savingsSnapshots],
+        savingsSnapshots: [newSnap, ...safeSavings],
       });
     }
   };
 
   const handleDeleteSavingsSnapshot = (id: string) => {
-    const updated = appData.savingsSnapshots.filter((s) => s.id !== id);
+    const updated = safeSavings.filter((s) => s.id !== id);
     updateStateAndStorage({ ...appData, savingsSnapshots: updated });
   };
 
   // Goal Handlers
   const handleSaveGoal = (goalData: Omit<SavingsGoal, 'id'>, editingId?: string) => {
     if (editingId) {
-      const updated = appData.goals.map((g) =>
+      const updated = safeGoals.map((g) =>
         g.id === editingId ? { ...g, ...goalData } : g
       );
       updateStateAndStorage({ ...appData, goals: updated });
@@ -202,17 +206,17 @@ export function App() {
         ...goalData,
         id: `goal_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       };
-      updateStateAndStorage({ ...appData, goals: [...appData.goals, newGoal] });
+      updateStateAndStorage({ ...appData, goals: [...safeGoals, newGoal] });
     }
   };
 
   const handleDeleteGoal = (id: string) => {
-    const updated = appData.goals.filter((g) => g.id !== id);
+    const updated = safeGoals.filter((g) => g.id !== id);
     updateStateAndStorage({ ...appData, goals: updated });
   };
 
   const handleToggleGoalComplete = (id: string) => {
-    const updated = appData.goals.map((g) =>
+    const updated = safeGoals.map((g) =>
       g.id === id ? { ...g, completed: !g.completed } : g
     );
     updateStateAndStorage({ ...appData, goals: updated });
@@ -222,8 +226,8 @@ export function App() {
     <div className="min-h-screen bg-gradient-to-b from-amber-50/30 via-pink-50/20 to-purple-50/30">
       {/* Top Header */}
       <Header
-        girls={appData.girls}
-        selectedGirlId={selectedGirlId}
+        girls={safeGirls}
+        selectedGirlId={currentGirl.id}
         onSelectGirl={setSelectedGirlId}
         isParentMode={isParentMode}
         onRequestParentMode={() => setIsPinModalOpen(true)}
@@ -241,9 +245,9 @@ export function App() {
         {isParentMode ? (
           <ParentDashboard
             girl={currentGirl}
-            transactions={appData.transactions}
-            savingsSnapshots={appData.savingsSnapshots}
-            goals={appData.goals}
+            transactions={safeTransactions}
+            savingsSnapshots={safeSavings}
+            goals={safeGoals}
             onAddTransaction={() => {
               setEditingTransaction(null);
               setIsTransactionModalOpen(true);
@@ -276,9 +280,9 @@ export function App() {
         ) : (
           <KidDashboard
             girl={currentGirl}
-            transactions={appData.transactions}
-            savingsSnapshots={appData.savingsSnapshots}
-            goals={appData.goals}
+            transactions={safeTransactions}
+            savingsSnapshots={safeSavings}
+            goals={safeGoals}
             onAddGoalClick={() => {
               setEditingGoal(null);
               setIsGoalModalOpen(true);
