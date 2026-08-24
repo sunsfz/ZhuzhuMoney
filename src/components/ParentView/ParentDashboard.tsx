@@ -3,7 +3,8 @@ import { CashTransaction, GirlProfile, SavingsGoal, SavingsSnapshot, THEME_STYLE
 import { CashBookkeeping } from './CashBookkeeping';
 import { SavingsBookkeeping } from './SavingsBookkeeping';
 import { GoalsBookkeeping } from './GoalsBookkeeping';
-import { Wallet, Landmark, Target, Sparkles, BookOpen } from 'lucide-react';
+import { WealthGrowthChart } from '../WealthGrowthChart';
+import { Wallet, Landmark, Target } from 'lucide-react';
 import { playPopSound } from '../../utils/audio';
 import { calculateCashBalance, getLatestSavingsBalance } from '../../services/storage';
 
@@ -82,6 +83,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Wealth Growth Interactive Chart */}
+      <WealthGrowthChart
+        girl={girl}
+        transactions={transactions}
+        savingsSnapshots={savingsSnapshots}
+      />
 
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/70 overflow-x-auto">

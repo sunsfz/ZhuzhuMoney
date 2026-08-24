@@ -3,7 +3,8 @@ import { CashTransaction, GirlProfile, SavingsGoal, SavingsSnapshot, THEME_STYLE
 import { PiggyBankInteractive } from './PiggyBankInteractive';
 import { KidHistoryTimeline } from './KidHistoryTimeline';
 import { KidGoalsList } from './KidGoalsList';
-import { Wallet, Landmark, Sparkles, TrendingUp, Heart, Calendar } from 'lucide-react';
+import { WealthGrowthChart } from '../WealthGrowthChart';
+import { Wallet, Landmark, Sparkles, Calendar } from 'lucide-react';
 import { calculateCashBalance, getLatestSavingsBalance } from '../../services/storage';
 
 interface KidDashboardProps {
@@ -145,6 +146,13 @@ export const KidDashboard: React.FC<KidDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Interactive Wealth Growth Chart & Time Filter */}
+      <WealthGrowthChart
+        girl={girl}
+        transactions={transactions}
+        savingsSnapshots={savingsSnapshots}
+      />
 
       {/* Wishlist & Goals Section */}
       <KidGoalsList
