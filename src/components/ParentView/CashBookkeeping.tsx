@@ -23,7 +23,7 @@ export const CashBookkeeping: React.FC<CashBookkeepingProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   const girlTransactions = useMemo(
-    () => transactions.filter((t) => t.girlId === girl.id),
+    () => (transactions || []).filter((t) => t && t.girlId === girl.id),
     [transactions, girl.id]
   );
 
@@ -33,10 +33,11 @@ export const CashBookkeeping: React.FC<CashBookkeepingProps> = ({
     let totalSpent = 0;
 
     girlTransactions.forEach((tx) => {
+      const amt = Number(tx.amount) || 0;
       if (tx.type === 'deposit') {
-        totalEarned += tx.amount;
+        totalEarned += amt;
       } else {
-        totalSpent += tx.amount;
+        totalSpent += amt;
       }
     });
 
@@ -47,7 +48,9 @@ export const CashBookkeeping: React.FC<CashBookkeepingProps> = ({
   // Unique categories for filter dropdown
   const categories = useMemo(() => {
     const set = new Set<string>();
-    girlTransactions.forEach((t) => set.add(t.category));
+    girlTransactions.forEach((t) => {
+      if (t.category) set.add(t.category);
+    });
     return Array.from(set);
   }, [girlTransactions]);
 
@@ -56,17 +59,17 @@ export const CashBookkeeping: React.FC<CashBookkeepingProps> = ({
     return girlTransactions
       .filter((t) => {
         if (typeFilter !== 'all' && t.type !== typeFilter) return false;
-        if (selectedCategory !== 'all' && t.category !== selectedCategory) return false;
+        if (selectedCategory !== 'all' && (t.category || 'Allowance') !== selectedCategory) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const matchDesc = t.description.toLowerCase().includes(q);
-          const matchCat = t.category.toLowerCase().includes(q);
-          const matchAmt = t.amount.toString().includes(q);
+          const matchDesc = (t.description || '').toLowerCase().includes(q);
+          const matchCat = (t.category || '').toLowerCase().includes(q);
+          const matchAmt = (t.amount || 0).toString().includes(q);
           if (!matchDesc && !matchCat && !matchAmt) return false;
         }
         return true;
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => new Date(b.date || '2000-01-01').getTime() - new Date(a.date || '2000-01-01').getTime());
   }, [girlTransactions, typeFilter, selectedCategory, searchQuery]);
 
   const handleDelete = (id: string, description: string) => {

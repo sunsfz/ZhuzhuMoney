@@ -91,7 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleResetSample = () => {
-    if (window.confirm('Reset all data to clean Jessie & Rains initial setup ($66 / $126 cash, $100 savings, 0 wishlists)?')) {
+    if (window.confirm('Reset all data to clean Jessie & Raina initial setup ($66 / $126 cash, $100 savings, 0 wishlists)?')) {
       playPopSound();
       const freshData: AppData = {
         ...INITIAL_DATA,

@@ -14,16 +14,16 @@ interface SavingsBookkeepingProps {
 
 export const SavingsBookkeeping: React.FC<SavingsBookkeepingProps> = ({
   girl,
-  snapshots,
+  snapshots = [],
   onAddSnapshot,
   onEditSnapshot,
   onDeleteSnapshot,
 }) => {
-  const girlSnapshots = [...snapshots]
-    .filter((s) => s.girlId === girl.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const girlSnapshots = (snapshots || [])
+    .filter((s) => s && s.girlId === girl.id)
+    .sort((a, b) => new Date(b.date || '2000-01-01').getTime() - new Date(a.date || '2000-01-01').getTime());
 
-  const growth = getSavingsGrowth(girl.id, snapshots);
+  const growth = getSavingsGrowth(girl.id, snapshots || []) || { initial: 0, current: 0, change: 0, percent: 0 };
   const latest = girlSnapshots[0];
 
   const handleDelete = (id: string, date: string) => {

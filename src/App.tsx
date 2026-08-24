@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { AppData, CashTransaction, GirlProfile, SavingsGoal, SavingsSnapshot } from './types/finance';
-import { INITIAL_DATA, loadAppData, saveAppData } from './services/storage';
-import { fetchFromGoogleSheet, pushToGoogleSheet } from './services/googleSheetsSync';
+import { INITIAL_DATA, loadAppData, saveAppData, DEFAULT_GOOGLE_SHEET_URL } from './services/storage';
+import {
+  fetchFromGoogleSheet,
+  pushToGoogleSheet,
+  pushTransactionToGoogle,
+  pushSavingsToGoogle,
+  pushGoalToGoogle,
+} from './services/googleSheetsSync';
 import { Header } from './components/Header';
 import { KidDashboard } from './components/KidView/KidDashboard';
 import { ParentDashboard } from './components/ParentView/ParentDashboard';
@@ -32,67 +38,65 @@ export function App() {
   const [isGoalModalOpen, setIsGoalModalOpen] = useState<boolean>(false);
   const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null);
 
-  // Initial cloud sync and auto-fetch on window focus (when switching apps or waking up iPad)
+  // Initial cloud sync on startup only (never clobber on window focus or typing)
   useEffect(() => {
-    if (appData.googleSheetScriptUrl) {
-      handleSilentPull(appData.googleSheetScriptUrl);
-    }
-
-    const handleFocus = () => {
-      if (appData.googleSheetScriptUrl) {
-        handleSilentPull(appData.googleSheetScriptUrl);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && appData.googleSheetScriptUrl) {
-        handleSilentPull(appData.googleSheetScriptUrl);
-      }
-    });
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [appData.googleSheetScriptUrl]);
+    const activeUrl = appData.googleSheetScriptUrl || DEFAULT_GOOGLE_SHEET_URL;
+    handleSilentPull(activeUrl);
+  }, []);
 
   const handleSilentPull = async (url: string) => {
     try {
       const cloudData = await fetchFromGoogleSheet(url);
       if (cloudData && cloudData.girls && cloudData.girls.length > 0) {
         setAppData(cloudData);
-        saveAppData(cloudData, false); // Pull never pushes back!
+        saveAppData(cloudData, false);
       }
-    } catch {
-      // Background sync silently fails if offline
+    } catch (err) {
+      console.warn('Silent cloud pull failed:', err);
     }
   };
 
   const updateStateAndStorage = (newData: AppData, pushToCloud = true) => {
     setAppData(newData);
-    saveAppData(newData, pushToCloud);
+    saveAppData(newData, false);
+
+    if (pushToCloud) {
+      const activeUrl = newData.googleSheetScriptUrl || DEFAULT_GOOGLE_SHEET_URL;
+      if (activeUrl) {
+        setIsSyncing(true);
+        pushToGoogleSheet(activeUrl, newData)
+          .catch((err) => console.warn('Background auto-push failed:', err))
+          .finally(() => setIsSyncing(false));
+      }
+    }
   };
 
   const handleCloudSync = async (url: string, showNotification = true) => {
     if (!url) return;
     setIsSyncing(true);
     try {
-      // First push current data to guarantee Google Sheet is up to date and populated
+      // First push current data to Google Sheet
       await pushToGoogleSheet(url, appData);
       
+      // Allow Google Apps Script 800ms to complete spreadsheet writes
+      await new Promise(r => setTimeout(r, 800));
+
       const cloudData = await fetchFromGoogleSheet(url);
       if (cloudData && cloudData.girls && cloudData.girls.length > 0) {
-        updateStateAndStorage(cloudData);
+        setAppData(cloudData);
+        saveAppData(cloudData, false);
       }
       
       if (showNotification) {
         playFanfareSound();
         alert('Data successfully saved & synced to your Google Sheet! ☁️✨ Check your spreadsheet tabs (Cash Ledger & Custodial Savings).');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Sync error:', err);
       if (showNotification) {
-        alert('Sync error: Please make sure your Apps Script Web App is deployed with "Who has access: Anyone".');
+        alert(
+          'Sync Notice: Unable to reach Google Sheet.\n\nPlease ensure your Google Apps Script deployment is set to:\n1. Execute as: "Me"\n2. Who has access: "Anyone"'
+        );
       }
     } finally {
       setIsSyncing(false);

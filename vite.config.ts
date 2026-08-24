@@ -5,5 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: './', // Ensures relative assets work seamlessly when deployed to GitHub Pages!
+  base: './',
+  server: {
+    host: true,
+    allowedHosts: true,
+    port: 5173,
+  },
 });

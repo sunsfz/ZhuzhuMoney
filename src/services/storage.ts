@@ -1,10 +1,10 @@
 import { AppData, CashTransaction, GirlProfile, SavingsGoal, SavingsSnapshot } from '../types/finance';
 import { pushToGoogleSheet } from './googleSheetsSync';
 
-const STORAGE_KEY = 'zhuzhu_money_data_v2';
-const SHEET_URL_KEY = 'zhuzhu_google_sheet_url';
+const STORAGE_KEY = 'zhuzhu_money_data_v3';
+const SHEET_URL_KEY = 'zhuzhu_google_sheet_url_v3';
 
-export const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj_2KU0Ds_Kd4VuXQlD_ZjVyQAeNxU6SFrZZrdIOJ8tqMobuAox9YBe3QeURpLBmP5/exec';
+export const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxiGiaOZWkVmeYEfQnQfBGnC4KUfvfYm7fxRuKsMZkoT1Q5VkgKdogP3ph3286M0pja/exec';
 
 export const INITIAL_DATA: AppData = {
   girls: [
@@ -17,68 +17,21 @@ export const INITIAL_DATA: AppData = {
     },
     {
       id: 'girl_2',
-      name: 'Rains',
+      name: 'Raina',
       avatarEmoji: '🧒🏻',
       themeColor: 'purple',
       birthday: '2018-01-01', // 8 years old, shorter hair
     },
   ],
-  transactions: [
-    // Jessie's Cash Starting Balance ($66.00)
-    {
-      id: 'tx_jessie_init',
-      girlId: 'girl_1',
-      type: 'deposit',
-      amount: 66.00,
-      category: 'Allowance',
-      categoryEmoji: '💵',
-      description: 'Starting cash pocket balance',
-      date: '2026-08-24',
-      createdAt: '2026-08-24T10:00:00.000Z',
-    },
-
-    // Rains' Cash Starting Balance ($126.00)
-    {
-      id: 'tx_rains_init',
-      girlId: 'girl_2',
-      type: 'deposit',
-      amount: 126.00,
-      category: 'Allowance',
-      categoryEmoji: '💵',
-      description: 'Starting cash pocket balance',
-      date: '2026-08-24',
-      createdAt: '2026-08-24T10:00:00.000Z',
-    },
-  ],
-  savingsSnapshots: [
-    // Jessie's Custodial Savings Checkpoint ($100.00)
-    {
-      id: 'sav_jessie_init',
-      girlId: 'girl_1',
-      balance: 100.00,
-      date: '2026-08-24',
-      note: 'Initial custodial account balance',
-      createdAt: '2026-08-24T10:00:00.000Z',
-    },
-
-    // Rains' Custodial Savings Checkpoint ($100.00)
-    {
-      id: 'sav_rains_init',
-      girlId: 'girl_2',
-      balance: 100.00,
-      date: '2026-08-24',
-      note: 'Initial custodial account balance',
-      createdAt: '2026-08-24T10:00:00.000Z',
-    },
-  ],
-  goals: [], // No wishlist items to start
+  transactions: [],
+  savingsSnapshots: [],
+  goals: [],
   parentPin: '0518',
   googleSheetScriptUrl: DEFAULT_GOOGLE_SHEET_URL,
 };
 
 export const loadAppData = (): AppData => {
   try {
-    // Check URL param first (e.g. ?sync=https://script.google.com/...)
     let persistentUrl = '';
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
@@ -94,22 +47,27 @@ export const loadAppData = (): AppData => {
     const envUrl = (import.meta as unknown as { env?: { VITE_GOOGLE_SHEET_URL?: string } }).env?.VITE_GOOGLE_SHEET_URL || '';
     const activeUrl = persistentUrl || envUrl || DEFAULT_GOOGLE_SHEET_URL;
 
-    const rawV2 = localStorage.getItem(STORAGE_KEY);
-    if (!rawV2) {
+    const rawV3 = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+    if (!rawV3) {
       const cleanInitial = {
         ...INITIAL_DATA,
         parentPin: '0518',
         googleSheetScriptUrl: activeUrl,
       };
-      saveAppData(cleanInitial, false); // NEVER push to cloud on cold start!
       return cleanInitial;
     }
-    const parsed = JSON.parse(rawV2);
+    const parsed = JSON.parse(rawV3);
+    
+    // Discard old deprecated URLs if present
+    const cleanUrl = (parsed.googleSheetScriptUrl && parsed.googleSheetScriptUrl.includes('AKfycbxj_2KU0Ds_'))
+      ? DEFAULT_GOOGLE_SHEET_URL
+      : (parsed.googleSheetScriptUrl || activeUrl);
+
     return {
       ...INITIAL_DATA,
       ...parsed,
       parentPin: parsed.parentPin || '0518',
-      googleSheetScriptUrl: parsed.googleSheetScriptUrl || activeUrl,
+      googleSheetScriptUrl: cleanUrl,
     };
   } catch (err) {
     console.error('Failed to load app data from localStorage', err);

@@ -18,8 +18,6 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
 
-  if (!isOpen) return null;
-
   const checkPin = (entered: string) => {
     const targetPin = correctPin && correctPin !== '1234' ? correctPin : '0518';
     if (entered === targetPin || entered === '0518') {
@@ -58,7 +56,11 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   };
 
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setPin('');
+      setError(false);
+      return;
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key >= '0' && e.key <= '9') {
@@ -73,6 +75,8 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, pin]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
