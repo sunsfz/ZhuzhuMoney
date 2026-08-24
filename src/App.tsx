@@ -61,16 +61,16 @@ export function App() {
       const cloudData = await fetchFromGoogleSheet(url);
       if (cloudData && cloudData.girls && cloudData.girls.length > 0) {
         setAppData(cloudData);
-        saveAppData(cloudData);
+        saveAppData(cloudData, false); // Pull never pushes back!
       }
     } catch {
       // Background sync silently fails if offline
     }
   };
 
-  const updateStateAndStorage = (newData: AppData) => {
+  const updateStateAndStorage = (newData: AppData, pushToCloud = true) => {
     setAppData(newData);
-    saveAppData(newData);
+    saveAppData(newData, pushToCloud);
   };
 
   const handleCloudSync = async (url: string, showNotification = true) => {

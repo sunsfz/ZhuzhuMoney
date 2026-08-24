@@ -101,7 +101,7 @@ export const loadAppData = (): AppData => {
         parentPin: '0518',
         googleSheetScriptUrl: activeUrl,
       };
-      saveAppData(cleanInitial);
+      saveAppData(cleanInitial, false); // NEVER push to cloud on cold start!
       return cleanInitial;
     }
     const parsed = JSON.parse(rawV2);
@@ -117,7 +117,7 @@ export const loadAppData = (): AppData => {
   }
 };
 
-export const saveAppData = (data: AppData): void => {
+export const saveAppData = (data: AppData, shouldPushToCloud = false): void => {
   try {
     const updated = {
       ...data,
@@ -127,9 +127,11 @@ export const saveAppData = (data: AppData): void => {
 
     if (updated.googleSheetScriptUrl) {
       localStorage.setItem(SHEET_URL_KEY, updated.googleSheetScriptUrl);
-      pushToGoogleSheet(updated.googleSheetScriptUrl, updated).catch(err => {
-        console.warn('Auto-sync to Google Sheet failed:', err);
-      });
+      if (shouldPushToCloud) {
+        pushToGoogleSheet(updated.googleSheetScriptUrl, updated).catch(err => {
+          console.warn('Auto-sync to Google Sheet failed:', err);
+        });
+      }
     }
   } catch (err) {
     console.error('Failed to save app data to localStorage', err);
