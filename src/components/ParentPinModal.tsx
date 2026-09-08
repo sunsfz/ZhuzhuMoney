@@ -19,8 +19,12 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   const [error, setError] = useState(false);
 
   const checkPin = (entered: string) => {
-    const targetPin = correctPin && correctPin !== '1234' ? correctPin : '0518';
-    if (entered === targetPin || entered === '0518') {
+    const rawTarget = (correctPin && correctPin.trim()) || '0518';
+    const targetPin = (/^\d+$/.test(rawTarget) && rawTarget.length < 4)
+      ? rawTarget.padStart(4, '0')
+      : rawTarget;
+
+    if (entered === targetPin) {
       playFanfareSound();
       setTimeout(() => {
         onSuccess();

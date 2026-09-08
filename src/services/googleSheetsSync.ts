@@ -156,7 +156,11 @@ function readSpreadsheetData(ss) {
     for (var p = 1; p < profData.length; p++) {
       var row = profData[p];
       if (row[0] === "Parent PIN" && row[1]) {
-        parentPin = String(row[1]).trim();
+        var rawPin = String(row[1]).trim();
+        if (/^\d+$/.test(rawPin) && rawPin.length < 4) {
+          while (rawPin.length < 4) rawPin = "0" + rawPin;
+        }
+        parentPin = rawPin;
       } else if (row[0] === "girl_1" || row[0] === "Jessie") {
         girls[0].name = String(row[1] || "Jessie").trim();
         girls[0].avatarEmoji = String(row[2] || "👧🏻").trim();
